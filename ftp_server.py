@@ -10,7 +10,7 @@ import time
 
 # 全局变量
 HOST = "0.0.0.0"
-PORT = 8800
+PORT = 8888
 ADDR = (HOST,PORT)
 FTP = "/home/tarena/File/"  # 代表文件库
 
@@ -33,12 +33,62 @@ class FTPServer(Thread):
             data = "\n".join(file_list)
             self.connfd.send(data.encode())
 
+    # 下载功能 给客户端发文件
+    def do_get(self,filename):
+        try:
+            f = open(FTP+filename,'rb')
+        except:
+            # 文件不存在
+            self.connfd.send(b"NO")
+            return
+        else:
+            self.connfd.send(b"YES")
+            time.sleep(0.1)
+            # 发送文件
+            while True:
+                data = f.read(1024)
+                if not data:
+                    time.sleep(0.1)
+                    self.connfd.send(b"##")
+                    break
+                self.connfd.send(data)
+            f.close()
+
+    # 上传文件 接收客户端发送来的文件
+    def do_put(self,filename):
+        if os.path.exists(FTP+filename):
+            self.connfd.send(b"NO")
+            return
+        else:
+            self.connfd.send(b"YES")
+            # 接收文件
+            # 接收文件
+            f = open(FTP+filename, 'wb')
+            while True:
+                data = self.connfd.recv(1024)
+                # 文件接收完毕
+                if data == b"##":
+                    break
+                f.write(data)
+            f.close()
+
 
     def run(self):
         while True:
             data = self.connfd.recv(1024).decode() # 接收客户端请求
-            if data == "L":
+            # 根据请求类型分情况讨论
+            if not data or data == 'E':
+                return # 函数结束即线程退出
+            elif data == "L":
                 self.do_list()
+            elif data[0] == 'G':
+                # "G filename"
+                filename = data.split(' ')[-1]
+                self.do_get(filename)
+            elif data[0] == 'P':
+                # "P filename"
+                filename = data.split(' ')[-1]
+                self.do_put(filename)
 
 
 # 网络并发结构搭建
